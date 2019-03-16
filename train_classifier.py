@@ -1,6 +1,10 @@
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
+from svhn_data import load_svhn_data
+from Model import classification_head
+from datetime import datetime
+from tensorflow.core.protobuf import saver_pb2
 
 import time
 import numpy as np
@@ -8,140 +12,109 @@ import sys
 import os
 import tensorflow as tf
 
-from svhn_data import load_svhn_data
-from svhn_model import classification_head
-from datetime import datetime
 
 
-TENSORBOARD_SUMMARIES_DIR = '/tmp/svhn_classifier_logs'
+GRAPH_SUMMARY = '/tmp/svhn_classifier_logs'
 NUM_LABELS = 10
-IMG_ROWS = 32
-IMG_COLS = 32
-NUM_CHANNELS = 3
+_R = 32
+_C = 32
+_Chnls = 3
 SAVE_FILE = "classifier.ckpt"
 
 BATCH_SIZE = 256
 NUM_EPOCHS = 128
 
-# LEARING RATE HYPER PARAMS
 LEARN_RATE = 0.075
 DECAY_RATE = 0.95
 STAIRCASE = True
 
-def prepare_log_dir():
-    '''Clears the log files then creates new directories to place
-        the tensorbard log file.''' 
-    if tf.gfile.Exists(TENSORBOARD_SUMMARIES_DIR):
-        tf.gfile.DeleteRecursively(TENSORBOARD_SUMMARIES_DIR)
-    tf.gfile.MakeDirs(TENSORBOARD_SUMMARIES_DIR)
+def clean_log():
+    if tf.gfile.Exists(GRAPH_SUMMARY):
+        tf.gfile.DeleteRecursively(GRAPH_SUMMARY)
+    tf.gfile.MakeDirs(GRAPH_SUMMARY)
 
 
-def fill_feed_dict(data, labels, x, y_, step):
-    size = labels.shape[0]
-    # Compute the offset of the current minibatch in the data.
-    # Note that we could use better randomization across epochs.
-    offset = (step * BATCH_SIZE) % (size - BATCH_SIZE)
-    batch_data = data[offset:(offset + BATCH_SIZE), ...]
-    batch_labels = labels[offset:(offset + BATCH_SIZE)]
-    return {x: batch_data, y_: batch_labels}
+def feed_data_label(data, labels, x, y_, step):
+    a = (step * BATCH_SIZE) % (labels.shape[0] - BATCH_SIZE)
+    _data = data[a:(a + BATCH_SIZE), ...]
+    _label = labels[a:(a + BATCH_SIZE)]
+    return {x: _data, y_: _label}
 
+def scopeOfInput(): 
+    _x = tf.placeholder(tf.float32, shape=[BATCH_SIZE, _R, _C, _Chnls], name="Images_Input")
+    _y = tf.placeholder(tf.float32, shape=[BATCH_SIZE, NUM_LABELS], name="Labels_Input")
+    return _x,_y
 
-def train_classification(train_data, train_labels,
+def train_single_digit_mod(train_data, train_labels,
                          valid_data, valid_labels,
                          test_data, test_labels,
                          train_size, saved_weights_path):
 
-    global_step = tf.Variable(0, trainable=False)
+    _gStep = tf.Variable(0, trainable=False)
 
-    # This is where training samples and labels are fed to the graph.
     with tf.name_scope('input'):
-        images_placeholder = tf.placeholder(tf.float32,
-                                            shape=[BATCH_SIZE, IMG_ROWS,
-                                                   IMG_COLS, NUM_CHANNELS], name="Images_Input")
-        labels_placeholder = tf.placeholder(tf.float32, shape=[BATCH_SIZE, NUM_LABELS], name="Labels_Input")
+        _imgStorage, _labelStorage = scopeOfInput()
 
     with tf.name_scope('image'):
-        tf.summary.image('train_input', images_placeholder, 10)
+        tf.summary.image('train_input', _imgStorage, 10)
 
+    logits = classification_head(_imgStorage, train=True)
 
-
-    # Training computation: logits + cross-entropy loss.
-    logits = classification_head(images_placeholder, train=True)
     with tf.name_scope('loss'):
-        loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(
-                          logits = logits, labels = labels_placeholder))
+        loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits = logits, labels = _labelStorage))
         tf.summary.scalar('loss', loss)
-    learning_rate = tf.train.exponential_decay(LEARN_RATE,
-                                               global_step*BATCH_SIZE,
-                                               train_size,
-                                               DECAY_RATE,
-                                               staircase=STAIRCASE)
 
+    learning_rate = tf.train.exponential_decay(LEARN_RATE, _gStep*BATCH_SIZE, train_size, DECAY_RATE, staircase=STAIRCASE)
     tf.summary.scalar('learning_rate', learning_rate)
-    '''Optimizer: set up a variable that's incremented
-      once per batch and controls the learning rate decay.'''
 
     with tf.name_scope('train'):
-        optimizer = tf.train.AdagradOptimizer(learning_rate).minimize(loss, global_step=global_step)
+        optimizer = tf.train.AdagradOptimizer(learning_rate).minimize(loss, global_step =_gStep)
 
-    # Predictions for the training, validation, and test data.
-    train_prediction = tf.nn.softmax(classification_head(images_placeholder, train=False))
-
-    init_op = tf.initialize_all_variables()
-
-    # Accuracy ops to save and restore all the variables.
-    saver = tf.train.Saver()
-
-    # Create a local session to run the training.
+    train_prediction = tf.nn.softmax(classification_head(_imgStorage, train=False))
+    init_op = tf.global_variables_initializer()
+    saver = tf.train.Saver(write_version = saver_pb2.SaverDef.V1)
     start_time = time.time()
+
     with tf.Session(config=tf.ConfigProto(log_device_placement=False)) as sess:
 
-        # Restore variables from disk.
         if(saved_weights_path):
             saver.restore(sess, saved_weights_path)
-            print("Model restored.")
+            print("Model Found.")
 
         sess.run(init_op)
-        # Run all the initializers to prepare the trainable parameters.
 
-        # Add histograms for trainable variables.
         for var in tf.trainable_variables():
             tf.summary.histogram(var.op.name, var)
 
-        # Add accuracy to tesnosrboard
         with tf.name_scope('accuracy'):
             with tf.name_scope('correct_prediction'):
                 correct_prediction = tf.equal(tf.argmax(train_prediction, 1),
-                                              tf.argmax(labels_placeholder, 1))
+                                              tf.argmax(_labelStorage, 1))
             with tf.name_scope('accuracy'):
                 accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
             tf.summary.scalar('accuracy', accuracy)
 
-        # Prepare vairables for the tensorboard
         merged = tf.summary.merge_all()
+        train_writer = tf.summary.FileWriter(GRAPH_SUMMARY + '/train', sess.graph)
+        valid_writer = tf.summary.FileWriter(GRAPH_SUMMARY + '/validation')
 
-        train_writer = tf.summary.FileWriter(TENSORBOARD_SUMMARIES_DIR + '/train', sess.graph)
-        valid_writer = tf.summary.FileWriter(TENSORBOARD_SUMMARIES_DIR + '/validation')
-
-        run_options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
+        run_options = tf.RunOptions(trace_level= tf.RunOptions.FULL_TRACE)
         run_metadata = tf.RunMetadata()
 
-        # Loop through tra ining steps.
         for step in range(int(NUM_EPOCHS * train_size) // BATCH_SIZE):
-            # Run the graph and fetch some of the nodes.
-            # This dictionary maps the batch data (as a numpy array) to the
-            feed_dict = fill_feed_dict(train_data, train_labels,
-                                       images_placeholder, labels_placeholder,
+            feed_dict = feed_data_label(train_data, train_labels,
+                                       _imgStorage, _labelStorage,
                                        step)
             _, l, lr, acc = sess.run([optimizer, loss, learning_rate, accuracy], feed_dict=feed_dict)
             duration = time.time() - start_time
 
-            if step % 1000 == 0:
-                valid_feed_dict = fill_feed_dict(valid_data, valid_labels,
-                                                  images_placeholder,
-                                                  labels_placeholder, step)
+            if step % 100 == 0:
+                valid_feed_dict = feed_data_label(valid_data, valid_labels,
+                                                  _imgStorage,
+                                                  _labelStorage, step)
                 valid_summary, _, l, lr, valid_acc = sess.run([merged, optimizer, loss, learning_rate, accuracy], feed_dict=valid_feed_dict, options=run_options, run_metadata=run_metadata)
                 valid_writer.add_run_metadata(run_metadata, 'step%03d' % step)
+                print('--------------------------------------------------------------------------')
                 print('Validation Accuracy: %.2f%%' % valid_acc)
                 valid_writer.add_summary(valid_summary, step)
 
@@ -151,24 +124,25 @@ def train_classification(train_data, train_labels,
                 print('Training Accuracy: %.2f%%' % train_acc)
                 train_writer.add_summary(train_summary, step)
 
-                print('Adding run metadata for', step)
+                if step % 1000:
+                    print('Number of steps taken: ', step)
+                    save_path = saver.save(sess, SAVE_FILE)
+                    print("Checkpoint saved in file: %s" % save_path)
+                print('--------------------------------------------------------------------------')
 
-            if step % 100 == 0:
+            elif step % 10 == 0:
                 elapsed_time = time.time() - start_time
                 start_time = time.time()
                 examples_per_sec = BATCH_SIZE / duration
                 format_str = ('%s: step %d, loss = %.2f  learning rate = %.6f  (%.1f examples/sec; %.2f ''sec/batch)')
-                print (format_str % (datetime.now(), step, l, lr, examples_per_sec, duration))
-
                 print('Mini-Batch Accuracy: %.2f%%' % acc)
-
                 sys.stdout.flush()
 
         # Save the variables to disk.
         save_path = saver.save(sess, SAVE_FILE)
         print("Model saved in file: %s" % save_path)
 
-        test_feed_dict = fill_feed_dict(test_data, test_labels, images_placeholder, labels_placeholder, step)
+        test_feed_dict = feed_data_label(test_data, test_labels, _imgStorage, _labelStorage, step)
         summary, acc = sess.run([merged, accuracy], feed_dict=test_feed_dict)
         print('Test Accuracy: %.5f%%' % acc)
 
@@ -177,18 +151,18 @@ def train_classification(train_data, train_labels,
 
 
 def main(saved_weights_path):
-    prepare_log_dir()
+    clean_log()
     train_data, train_labels = load_svhn_data("train", "cropped")
     valid_data, valid_labels = load_svhn_data("valid", "cropped")
     test_data, test_labels = load_svhn_data("test", "cropped")
 
-    print("Training", train_data.shape)
-    print("Valid", valid_data.shape)
-    print("Test", test_data.shape)
+    print("Training Data Dim", train_data.shape)
+    print("Valid Data Dim", valid_data.shape)
+    print("Test Data Dim", test_data.shape)
 
     train_size = train_labels.shape[0]
     saved_weights_path = None
-    train_classification(train_data, train_labels,
+    train_single_digit_mod(train_data, train_labels,
                          valid_data, valid_labels,
                          test_data, test_labels, train_size,
                          saved_weights_path)

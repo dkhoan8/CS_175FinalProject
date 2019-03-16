@@ -1,40 +1,44 @@
+import matplotlib
+matplotlib.use('Agg')
+
 import sys
 import os
-import PIL.Image as Image
 import numpy as np
 import tensorflow as tf
 import matplotlib.pyplot as plt
 
-from svhn_model import classification_head
-
+from Model import classification_head
+from numpy import array
+from PIL import ImageOps, Image
 
 WEIGHTS_FILE = "classifier.ckpt"
-
+SIZE = (32,32)
 
 def detect(img_path, saved_model_weights):
     img = Image.open(img_path)
-    plt.imshow(img)
+    
+    print("-------------------Attemped resize img------------------------------")    
+    fit_and_resized_image = ImageOps.fit(img, SIZE, Image.ANTIALIAS)
+    plt.imshow(fit_and_resized_image)
     plt.show()
 
-    # Load the previously saved model to load the vars into.
     X = tf.placeholder(tf.float32, shape=(1, 32, 32, 3))
     prediction = tf.nn.softmax(classification_head(X))
 
-    # Create a loader
     saver = tf.train.Saver()
     with tf.Session() as sess:
         print("hello")
         print("Loading Saved Checkpoints From:", WEIGHTS_FILE)
-        # place the weights into the model.
+
         saver.restore(sess, saved_model_weights)
-        print("Model restored.")
+        print("Model restored: ")
 
-        pix = np.array(img)
-        exp = np.expand_dims(pix, axis=0)
+        pix = np.array(fit_and_resized_image)
         norm_img = (255-pix)*1.0/255.0
+        exp = np.expand_dims(norm_img, axis=0)
 
-        feed_dict = {X: exp}
-        predictions = sess.run(prediction, feed_dict=feed_dict)
+        feed_dat = {X: exp}
+        predictions = sess.run(prediction, feed_dict=feed_dat)
         print("Best Prediction is:", np.argmax(predictions))
 
 if __name__ == "__main__":

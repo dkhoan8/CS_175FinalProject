@@ -1,17 +1,24 @@
+import matplotlib
+matplotlib.use('Agg')
+
 import sys
 import os
 import numpy as np
 import tensorflow as tf
 import PIL.Image as Image
 import matplotlib.pyplot as plt
-
-from svhn_model import regression_head
-from svhn_data import load_svhn_data
 import time
+
+from Model import regression_head
+from svhn_data import load_svhn_data
+from PIL import ImageOps, Image
+from tensorflow.python.saved_model import tag_constants
+from six.moves import cPickle as pickle
+from six.moves import range
 
 test_dataset, test_labels = load_svhn_data("test", "full")
 WEIGHTS_FILE = "regression.ckpt"
-
+SIZE = (64,64)
 
 def prediction_to_string(pred_array):
     pred_str = ""
@@ -25,17 +32,20 @@ def prediction_to_string(pred_array):
 
 def detect(img_path, saved_model_weights):
     sample_img = Image.open(img_path)
-    plt.imshow(sample_img)
+
+    print("-------------------Attemped resize img------------------------------")    
+    fit_and_resized_image = ImageOps.fit(sample_img, SIZE, Image.ANTIALIAS)
+    plt.imshow(fit_and_resized_image)
     plt.show()
 
-    pix = np.array(sample_img)
+    pix = np.array(fit_and_resized_image)
     norm_pix = (255-pix)*1.0/255.0
     exp = np.expand_dims(norm_pix, axis=0)
 
     X = tf.placeholder(tf.float32, shape=(1, 64, 64, 3))
     [logits_1, logits_2, logits_3, logits_4, logits_5] = regression_head(X)
 
-    predict = tf.pack([tf.nn.softmax(logits_1),
+    predict = tf.stack([tf.nn.softmax(logits_1),
                       tf.nn.softmax(logits_2),
                       tf.nn.softmax(logits_3),
                       tf.nn.softmax(logits_4),
@@ -54,7 +64,7 @@ def detect(img_path, saved_model_weights):
         predictions = session.run(best_prediction, feed_dict=feed_dict)
         pred = prediction_to_string(predictions[0])
         end_time = time.time()
-        print "Best Prediction", pred, "made in", end_time - start_time
+        print ("Best Prediction: ", pred)
 
 
 if __name__ == "__main__":
