@@ -14,5 +14,3 @@
 ## Usage:
 
 Open project.ipynb with jupyter notebook and run.
-
-
