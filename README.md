@@ -1,13 +1,13 @@
 
 ##Step 1: Download and preprocess the SVHN data
 
-`python svhn_data.py`
+`python Data_harvest.py`
 
 ##Step 2: Train your own models
 
 Train single digit classifier first since it will be used for later as checkpoint.
 
-`python train_classifier.py`
+`python single_digit_trainer.py`
 
 This should generate a tensorflow checkpoint file:
 
@@ -15,7 +15,7 @@ This should generate a tensorflow checkpoint file:
 
 Next train the multi-digit reader
 
-`python train_regressor.py`
+`python multi_digit_trainer.py`
 
 This should generate a tensorflow checkpoint file:
 
@@ -23,12 +23,4 @@ This should generate a tensorflow checkpoint file:
 
 ## Usage
 
-FOR LOCAL:
-
-The single digit reader for an image file  Cropped_Test_Img/any_file_cropped.png `python single_digit_reader.py Single_Digit_Test/any_file_cropped.png`
-
-The multi digit reader for an image file  Cropped_Test_Img/any_file_cropped.png `python mulit_digit_reader.py  Multi_Digit_Test/any_file_cropped.png`
-
-FOR NOTEBOOK:
-
-RUN ALL CELLS.
+FOR Jupyter NOTEBOOK: Open project.ipynb and run all!
