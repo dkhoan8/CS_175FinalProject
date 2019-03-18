@@ -8,7 +8,7 @@ import sys
 import os
 import tensorflow as tf
 
-from svhn_data import load_svhn_data
+from Data_harvest import load_local_svhn_data
 from Model import regression_head
 from tensorflow.core.protobuf import saver_pb2
 
@@ -168,9 +168,9 @@ def multi_digit_trainer(train_data, train_labels, valid_data, valid_labels,
 
 def main(saved_weights_path):
     prepare_log_dir()
-    train_data, train_labels = load_svhn_data("train", "full")
-    valid_data, valid_labels = load_svhn_data("valid", "full")
-    test_data, test_labels = load_svhn_data("test", "full")
+    train_data, train_labels = load_local_svhn_data("train", "full")
+    valid_data, valid_labels = load_local_svhn_data("valid", "full")
+    test_data, test_labels = load_local_svhn_data("test", "full")
 
     print("Train Data Dim", train_data.shape)
     print("Valid Data Dim", valid_data.shape)

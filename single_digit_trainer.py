@@ -1,7 +1,8 @@
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
-from svhn_data import load_svhn_data
+
+from Data_harvest import load_local_svhn_data
 from Model import classification_head
 from datetime import datetime
 from tensorflow.core.protobuf import saver_pb2
@@ -134,9 +135,9 @@ def train_single_digit_mod(train_data, train_labels,
 
 def main(saved_weights_path):
     clean_log()
-    train_data, train_labels = load_svhn_data("train", "cropped")
-    valid_data, valid_labels = load_svhn_data("valid", "cropped")
-    test_data, test_labels = load_svhn_data("test", "cropped")
+    train_data, train_labels = load_local_svhn_data("train", "cropped")
+    valid_data, valid_labels = load_local_svhn_data("valid", "cropped")
+    test_data, test_labels = load_local_svhn_data("test", "cropped")
 
     print("Training Data Dim", train_data.shape)
     print("Valid Data Dim", valid_data.shape)
