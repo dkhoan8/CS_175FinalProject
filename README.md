@@ -11,6 +11,23 @@
 6. project.ipynb: contains codes that can test the models with raw data.
 7. project.html: a printed version of project.ipynb with results and code.
 
-## Usage:
+## How to train:
+### Step 1: Navigate to src directory
 
-Open project.ipynb with jupyter notebook and run.
+### Step 2: Download data with Data_harvest.py. Run command:
+    python Data_harvest.py
+
+    -- This will produce a directory called 'data' --
+    
+### Step 3: Train single digit recognizer with single_digit_trainer.py. Run command:
+    python single_digit_trainer.py
+
+    -- This will produce a model .ckpt file (classifier.ckpt) --
+
+### Step 3: Train multi digits recognizer with multi_digit_trainer.py. Run command:
+    python multi_digit_trainer.py.py
+
+    -- This will produce a model .ckpt file (regression.ckpt) --
+
+### Step 4: Test the models with your notebook environment, Jupyter Notebook recommended:
+    Open project.ipynb with jupyter notebook and run.
