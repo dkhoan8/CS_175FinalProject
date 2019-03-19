@@ -6,7 +6,7 @@ import sys
 import tarfile
 from PIL import Image as Image
 
-from digit_struct import DigitStruct
+from Data_Struct import DigitStruct
 
 from scipy.io import loadmat
 from sklearn.model_selection import train_test_split

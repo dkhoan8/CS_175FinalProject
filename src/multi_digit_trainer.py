@@ -49,9 +49,11 @@ def fill_feed_dict(data, labels, x, y_, step):
     return {x: batch_data, y_: batch_labels}
 
 
-def multi_digit_trainer(train_data, train_labels, valid_data, valid_labels,
-                    test_data, test_labels, train_size, saved_weights_path):
-    global_step = tf.Variable(0, trainable=False)
+def multi_digit_trainer(train_data, train_labels,
+						valid_data, valid_labels,
+						test_data, test_labels,
+						train_size, saved_weights_path):
+    _gStep = tf.Variable(0, trainable=False)
 
     with tf.name_scope('input'):
         images_placeholder = tf.placeholder(tf.float32,
@@ -72,11 +74,11 @@ def multi_digit_trainer(train_data, train_labels, valid_data, valid_labels,
         tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(logits = logits_4, labels = labels_placeholder[:, 4])) +\
         tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(logits = logits_5, labels = labels_placeholder[:, 5]))
 
-    learning_rate = tf.train.exponential_decay(LEARN_RATE, global_step*BATCH_SIZE, train_size, DECAY_RATE)
+    learning_rate = tf.train.exponential_decay(LEARN_RATE, _gStep*BATCH_SIZE, train_size, DECAY_RATE)
     tf.summary.scalar('learning_rate', learning_rate)
 
     with tf.name_scope('train'):
-        optimizer = tf.train.AdagradOptimizer(learning_rate).minimize(loss, global_step=global_step)
+        optimizer = tf.train.AdagradOptimizer(learning_rate).minimize(loss, global_step=_gStep)
 
     prediction = tf.stack([tf.nn.softmax(regression_head(images_placeholder)[0]),
                                 tf.nn.softmax(regression_head(images_placeholder)[1]),
@@ -111,9 +113,9 @@ def multi_digit_trainer(train_data, train_labels, valid_data, valid_labels,
                 accuracy = tf.reduce_sum(tf.cast(correct_prediction, tf.float32)) / prediction.get_shape().as_list()[1] / prediction.get_shape().as_list()[0]
             tf.summary.scalar('accuracy', accuracy)
 
-        merged = tf.summary.merge_all()
-        train_writer = tf.summary.FileWriter(GRAPH_SUMMARY + '/train', sess.graph)
-        valid_writer = tf.summary.FileWriter(GRAPH_SUMMARY + '/validation')
+        final_merge = tf.summary.merge_all()
+        trWriter = tf.summary.FileWriter(GRAPH_SUMMARY + '/train', sess.graph)
+        valWriter = tf.summary.FileWriter(GRAPH_SUMMARY + '/validation')
 
         run_options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
         run_metadata = tf.RunMetadata()
@@ -121,29 +123,29 @@ def multi_digit_trainer(train_data, train_labels, valid_data, valid_labels,
         for step in range(int(NUM_EPOCHS * train_size) // BATCH_SIZE):
             duration = time.time() - start_time
             examples_per_sec = BATCH_SIZE / duration
-            train_feed_dict = fill_feed_dict(train_data, train_labels, images_placeholder, labels_placeholder, step)
+            tr_feed_dict = fill_feed_dict(train_data, train_labels, images_placeholder, labels_placeholder, step)
             _, l, lr, acc, predictions = sess.run([optimizer, loss, learning_rate,
                                                   accuracy, prediction],
-                                                  feed_dict=train_feed_dict)
+                                                  feed_dict=tr_feed_dict)
 
-            train_batched_labels = train_feed_dict.values()[1]
+            tr_batched_labels = tr_feed_dict.values()
 
             if step % 10 == 0:
-                valid_feed_dict = fill_feed_dict(valid_data, valid_labels, images_placeholder, labels_placeholder, step)
-                valid_batch_labels = valid_feed_dict.values()[1]
+                val_feed_dict = fill_feed_dict(valid_data, valid_labels, images_placeholder, labels_placeholder, step)
+                valid_batch_labels = val_feed_dict.values()
 
-                valid_summary, _, l, lr, valid_acc = sess.run([merged, optimizer, loss, learning_rate, accuracy],
-                feed_dict=valid_feed_dict, options=run_options, run_metadata=run_metadata)
+                valSummary, _, l, lr, valid_acc = sess.run([final_merge, optimizer, loss, learning_rate, accuracy],
+                feed_dict=val_feed_dict, options=run_options, run_metadata=run_metadata)
                 print('---------------------------------------------------------------')
                 print('Validation Accuracy: %.2f' % valid_acc)
-                valid_writer.add_run_metadata(run_metadata, 'step%03d' % step)
-                valid_writer.add_summary(valid_summary, step)
+                valWriter.add_run_metadata(run_metadata, 'step%03d' % step)
+                valWriter.add_summary(valSummary, step)
 
-                train_summary, _, l, lr, train_acc = sess.run([merged, optimizer, loss, learning_rate, accuracy],
-                    feed_dict=train_feed_dict)
-                train_writer.add_run_metadata(run_metadata, 'step%03d' % step)
-                train_writer.add_summary(train_summary, step)
-                print('Training Set Accuracy: %.2f' % train_acc)
+                trSummary, _, l, lr, trAccuracy = sess.run([final_merge, optimizer, loss, learning_rate, accuracy],
+                    feed_dict=tr_feed_dict)
+                trWriter.add_run_metadata(run_metadata, 'step%03d' % step)
+                trWriter.add_summary(trSummary, step)
+                print('Training Set Accuracy: %.2f' % trAccuracy)
                 if(step % 1000 == 0):
                     print('Current milestone is at: ', step)
                     # save_path = saver.save(sess, SAVE_FILE)
@@ -162,8 +164,8 @@ def multi_digit_trainer(train_data, train_labels, valid_data, valid_labels,
         print('Test accuracy: %.2f' % test_acc)
         save_path = saver.save(sess, SAVE_FILE)
         print("Model saved in file: %s" % save_path)
-        train_writer.close()
-        valid_writer.close()
+        trWriter.close()
+        valWriter.close()
 
 
 def main(saved_weights_path):

@@ -1,5 +1,3 @@
-# Wrapper for SVHN digitStruct. Modified from
-# http://www.a2ialab.com/lib/exe/fetch.php?media=public:scripts:svhn_dataextract.py
 import h5py
 
 
@@ -18,15 +16,15 @@ class DigitStruct:
         name = ''.join([chr(c[0]) for c in self.file[self.digit_struct_name[n][0]].value])
         return name
 
-    def bbox_helper(self, attr):
+    def bbox_helper(self, attribute):
         '''bbox_helper abstracts the bbox or an array of bbox.
            used internally with get_bbox
         '''
-        if (len(attr) > 1):
-            attr = [self.file[attr.value[j].item()].value[0][0] for j in range(len(attr))]
+        if (len(attribute) > 1):
+            attribute = [self.file[attribute.value[j].item()].value[0][0] for j in range(len(attribute))]
         else:
-            attr = [attr.value[0][0]]
-        return attr
+            attribute = [attribute.value[0][0]]
+        return attribute
 
     def get_bbox(self, n):
         '''getBbox returns a dict of data for the n(th) bbox. 
